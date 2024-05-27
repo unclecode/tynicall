@@ -12,7 +12,11 @@ def load_model(model_name):
         torch_dtype = torch.float16
         attn_implementation = "eager"    
 
-    config = AutoConfig.from_pretrained(model_name, attn_implementation=attn_implementation, resume_download=None)
+    config = AutoConfig.from_pretrained(
+        model_name, 
+        attn_implementation=attn_implementation, 
+        resume_download=None
+    )
     model = AutoModelForCausalLM.from_pretrained(
         model_name, 
         attn_implementation=attn_implementation, 
@@ -30,8 +34,8 @@ def resize_vocab(model_name, special_tokens, save_pretrained=False,  **kwargs):
     print("We have added", num_added_toks, "tokens")
     model.resize_token_embeddings(len(tokenizer))
     if save_pretrained:
-        tokenizer.save_pretrained("TinyStories-1M-Extended")
-        model.save_pretrained("TinyStories-1M-Extended")
+        tokenizer.save_pretrained(f"local/{model_name}-Extended")
+        model.save_pretrained(f"local/{model_name}-Extended")
     return tokenizer, model
 
 # ⚡ ~ pip install -qqq flash-attn

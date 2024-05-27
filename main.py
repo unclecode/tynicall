@@ -32,7 +32,7 @@ if False and os.path.exists(MODEL_NAME.split('/')[1] + "-Extended"):
     os.system(f"rm -rf wandb outputs")
 
 
-if not os.path.exists(MODEL_NAME.split('/')[1] + "-Extended"):
+if not os.path.exists("local/" + MODEL_NAME.split('/')[1] + "-Extended"):
     tokenizer, model = resize_vocab(MODEL_NAME, SPECIAL_TOKENS, save_pretrained=True)
 else:
     tokenizer, model = load_model(f"local/{MODEL_NAME.split('/')[1]}-Extended")
@@ -45,7 +45,7 @@ try:
 except:
     dataset = load(DATASET_NAME, split="all")
     dataset = dataset.map(process_row)
-    dataset.save_to_disk(DATASET_NAME + "-processed")
+    dataset.save_to_disk("local/" + DATASET_NAME + "-processed")
 
 # Check multiple tools
 data = dataset
