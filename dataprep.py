@@ -1,6 +1,51 @@
 from datasets import load_dataset, load_from_disk
 from config import *
 import json, re
+from matplotlib import pyplot as plt
+
+
+EOS = '<|endoftext|>'
+
+def load_and_prepare(dataset_name, tokenizer, max_length = 2048, eos = None):
+    global EOS
+    if eos:
+        EOS = eos
+    try:
+        print("Loading from local cache")
+        dataset = load_from_disk("local/" + dataset_name + "-processed")
+    except:
+        print("Loading from Huggingface, applying processing and saving to local cache")
+        dataset = load(dataset_name, split="all")
+        dataset = dataset.map(process_row_batch, batched=True) #,  batch_size=10000, num_proc=4)
+        
+        def token_count(row_text):
+            return len(
+                        tokenizer(
+                            row_text,
+                            add_special_tokens=True,
+                            return_attention_mask=False,
+                        )["input_ids"]
+                    )
+
+        def add_token_count(batch):
+            return {"token_count": [token_count(text) for text in batch["text"]]}
+        dataset = dataset.map(add_token_count, batched=True, batch_size=10000, num_proc=4)
+        print("Filtering based on max_length, current size of dataset: ", len(dataset), "rows")
+        dataset = dataset.filter(lambda x: x['token_count'] <= max_length)
+        print("Filtered size of dataset: ", len(dataset), "rows")
+        dataset.save_to_disk("local/" + dataset_name + "-processed")
+
+    return dataset
+
+def generate_token_histogram(dataset):
+    token_counts = dataset['token_count']  # Adjust for the appropriate split
+    plt.figure(figsize=(10, 6))
+    plt.hist(token_counts, bins=50, alpha=0.75)
+    plt.title('Token Count Distribution')
+    plt.xlabel('Token Count')
+    plt.ylabel('Frequency')
+    plt.grid(True)
+    plt.show()
 
 def load(dataset_name, split="train", shuffle = False, select = None, seed = 42):
     dataset = load_dataset(dataset_name, split=split)
@@ -72,8 +117,7 @@ def extract_function_calls(chat_message):
         return extract_json_list(function_calls.strip())
     else:
         return []
-    
-
+  
 def process_dataset(dataset):
     result = []
     ix = 0
@@ -155,7 +199,6 @@ def extract_function_calls(chat_message):
     else:
         return []
     
-
 def process_dataset(dataset):
     result = []
     ix = 0
@@ -167,7 +210,34 @@ def process_dataset(dataset):
         ix += 1
     return result
 
+def process_row_batch(batch):
+    global EOS
+    batch_result = {
+        "text":[],
+        "tool":[],
+        "response":[],
+        "user":[]
+    }
+    for ix in range(len(batch['system'])):
+        system_functions = extract_functions(batch['system'][ix])
+        chat_function_calls = extract_function_calls(batch['chat'][ix])
+        first_user_message = [r for r in batch['conversations'][ix] if r['from'] == 'human']
+        if not first_user_message:
+            print("ERROR: NO USER MESSAGE", batch['conversations'][ix])
+            continue
+        user = first_user_message[0]['value']
+        tools = json.dumps(system_functions)
+        response = json.dumps(chat_function_calls)
+        batch_result['user'].append(user)
+        batch_result['tool'].append(tools)
+        batch_result['response'].append(response)
+        text = f"""<s>[AVAILABLE_TOOLS] {tools} [/AVAILABLE_TOOLS][INST] {SYSTEM_MESSAGE}<0x0A><0x0A>{user}<0x0A><0x0A><0x0A>[TOOLS]{response}[/TOOLS][/INST]<|endoftext|>"""
+        batch_result['text'].append(text.replace(' ', '▁'))
+
+    return batch_result
+
 def process_row(row):
+    global EOS
     system_functions = extract_functions(row['system'])
     chat_function_calls = extract_function_calls(row['chat'])
     row['tool'] = json.dumps(system_functions)
@@ -175,13 +245,25 @@ def process_row(row):
 
     first_user_message = [r for r in row['conversations'] if r['from'] == 'human']
     if not first_user_message:
-        print(row['conversations'])
-        raise
-        first_user_message = ''
+        print("ERROR: NO USER MESSAGE", row['conversations'])
+
     row['user'] = first_user_message
-    text = f"""<s>[AVAILABLE_TOOLS] {row['tool']} [/AVAILABLE_TOOLS][INST] {SYSTEM_MESSAGE}<0x0A><0x0A>[TOOLS]{row['user']}[/TOOLS][/INST]"""
+    text = f"""<s>[AVAILABLE_TOOLS] {row['tool']} [/AVAILABLE_TOOLS][INST] {SYSTEM_MESSAGE}<0x0A><0x0A>{row['user']}[TOOLS]{row['response']}[/TOOLS][/INST]{EOS}"""
     row['text'] = text.replace(' ', '▁')
     return row
 
 
 
+if __name__ == "__main__":
+    dataset = load(DATASET_NAME, split="all")
+    # dataset = dataset.train_test_split(test_size=0.05)
+    ix = 0
+    t = process_row(dataset[ix])
+    import textwrap
+    wrapper = textwrap.TextWrapper(width=80)
+    print(wrapper.fill(t['text']))    
+    # for row in dataset:
+    #     if 'I need to ship a package to Canada.' in row['chat']:
+    #         break
+    #         ix += 1
+    # print(ix)

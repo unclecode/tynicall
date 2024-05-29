@@ -10,8 +10,6 @@ import wandb
 from torch.utils.data import DataLoader
 from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training, get_peft_model
 # from peft import get_peft_model, prepare_model_for_int8_training
-import textwrap
-wrapper = textwrap.TextWrapper(width=80)
 
 import bitsandbytes
 from transformers import (
@@ -27,21 +25,36 @@ from matplotlib import pyplot as plt
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 # Defined in the secrets tab in Google Colab
 os.environ["WANDB_NOTEBOOK_NAME"] = f"{__location__}/main.py"
-# os.environ["WANDB_ENTITY"] = "unclecode/alephnull"
-os.environ["WANDB_LOG_MODEL"] = "checkpoint"
-os.environ["WANDB_PROJECT"] = f"tinycall"
 wandb.login(key=os.environ.get("WANDB_API_KEY"))
 
 False and remove_local_cache()
 
 tokenizer, model = get_model_and_tokenizer(MODEL_NAME)
+# tokenizer.pad_token, tokenizer.pad_token_id
+# print(model.config)
 
 # Load dataset (Processed one)
 dataset = load_and_prepare(DATASET_NAME, tokenizer)
 generate_token_histogram(dataset)
-
 dataset = dataset.train_test_split(test_size=0.05)
-# print(wrapper.fill(dataset["train"][2]["text"]))
+
+# Check multiple tools
+# # QLoRA config
+# bnb_config = BitsAndBytesConfig(
+#     load_in_4bit=True,
+#     bnb_4bit_quant_type="nf4",
+#     bnb_4bit_compute_dtype=torch_dtype,
+#     bnb_4bit_use_double_quant=True,
+# )
+
+#  Get linear layer name 
+# def list_linear_layers(model):
+#     linear_layers = []
+#     for name, module in model.named_modules():
+#         if isinstance(module, nn.Linear):
+#             linear_layers.append(name)
+#     return linear_layers
+# linear_layer_names = list_linear_layers(model)
 
 # LoRA config
 peft_config = LoraConfig(
@@ -59,39 +72,43 @@ peft_config = LoraConfig(
         'out_proj'
     ]
 )
-# get_peft_model(model, peft_config).print_trainable_parameters()
-# model = get_peft_model(model, peft_config)
-# model.print_trainable_parameters()
+get_peft_model(model, peft_config).print_trainable_parameters()
+model = get_peft_model(model, peft_config)
+model.print_trainable_parameters()
 
-response_template = "<0x0A><0x0A><0x0A>"
+response_template = "<0x0A><0x0A>"
 response_template_ids = tokenizer.encode(
     response_template, add_special_tokens=False
 )[2:]
 collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
-
-# # Test the collator
-# examples = [dataset["train"][2]["text"]]
-# encodings = [tokenizer(e) for e in examples]
-# dataloader = DataLoader(encodings, collate_fn=collator, batch_size=1)
-# batch = next(iter(dataloader))
-# batch.keys()
-# batch['labels']
 
 def count_trainable_parameters(model):
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     return params
 
-total_params = count_trainable_parameters(model)
+count_trainable_parameters(model)
+# # Test the collator
+# examples = [process_row(dataset["train"][0])['text']]
+# encodings = [tokenizer(e) for e in examples]
+# dataloader = DataLoader(encodings, collate_fn=collator, batch_size=1)
+# batch = next(iter(dataloader))
+# batch.keys()
+# batch['labels']
+
+
+# # No need i guess
+# model, tokenizer = setup_chat_format(model, tokenizer)
+# model = prepare_model_for_kbit_training(model)
 
 MAX_SEQ_LENGTH = 2048
 BATCH_SIZE = 4
 GRADIENT = 4
 EPOCH = 3
-LEARNING_RATE = 2e-4 # 1e-5 # 2e-4
+LEARNING_RATE = 2e-4
 WEIGHT_DECAY= 0.01
-MAX_STEPS = 10000 #int(len(dataset["train"]) / BATCH_SIZE * EPOCH)
-WARMUP_STEPS = 500 # int(MAX_STEPS * 0.1)
+MAX_STEPS = 50 #int(len(dataset["train"]) / BATCH_SIZE * EPOCH)
+WARMUP_STEPS = int(MAX_STEPS * 0.1)
 
 trainer = SFTTrainer(
     model = model,
@@ -144,34 +161,25 @@ trainer.model.config.save_pretrained(location + NEW_MODEL_NAME)
 
 # Test
 # Test the pipeline with a sample input
-i = 1
+i = 0
 example = dataset["test"][i]
-# example = dataset[i]
 text = example["text"]
-text = text.split("<0x0A><0x0A><0x0A>")[0] + "<0x0A><0x0A><0x0A>"
-ground_truth =  example["text"].split("<0x0A><0x0A><0x0A>")[1]
+text = text.split("<0x0A><0x0A>")[0] + "<0x0A><0x0A>"
 
-# Use textwrapper to wrap the text# print(wrapper.fill(example["chat"]))
-print(wrapper.fill(example['text']))
-print(wrapper.fill(text))
-print(wrapper.fill(ground_truth))
-
+example["text"].split("<0x0A><0x0A>")[1]
 
 # Ensure the input is correctly tokenized
 inputs = tokenizer(text, return_tensors="pt").to(device)
 
 # Can be ignorded
-# inputs = {key: val.half() if key != 'input_ids' else val for key, val in inputs.items()}
+inputs = {key: val.half() if key != 'input_ids' else val for key, val in inputs.items()}
 
 # Generate outputs
 with torch.no_grad():
     outputs = model.generate(**inputs, max_new_tokens=512, pad_token_id=tokenizer.pad_token_id)
 
 response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-print(wrapper.fill(response))
-
-wrapper.fill(ground_truth.replace("[/TOOLS][/INST]", "")) in response
+print(response)
 
 # Inference and Test
 base_model = AutoModelForCausalLM.from_pretrained(

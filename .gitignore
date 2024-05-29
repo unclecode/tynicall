@@ -163,5 +163,13 @@ cython_debug/
 .lightning_studio
 local/
 .idea/
+
 .vscode/
-.netrc
+.vscode-server/
+outputs/
+wandb/
+.dotnet/
+.*
+!.gitignore
+
+.gitignore_global
