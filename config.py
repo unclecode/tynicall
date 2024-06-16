@@ -1,3 +1,7 @@
+MODEL_NAME = "roneneldan/TinyStories-8M"
+MODEL_NAME = "roneneldan/TinyStories-3M"
+MODEL_NAME = "roneneldan/TinyStories-33M"
+MODEL_NAME = "EleutherAI/gpt-neo-125m"
 MODEL_NAME = "roneneldan/TinyStories-1M"
 NEW_MODEL_NAME = "TinyCall-1M"
 DATASET_NAME = "lilacai/glaive-function-calling-v2-sharegpt"

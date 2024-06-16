@@ -1,0 +1,5 @@
+- Tinystories article (https://huggingface.co/roneneldan)
+- Perhaps I try this one day (https://medium.com/@kl.yap/replicating-tinystories-paper-38839d03ec81)
+- Helpful to know a few tricks on Lightning (https://www.youtube.com/watch?v=eK6ft51OCTc&ab_channel=williamfalcon)
+- Colab version of this project need to be updated (https://colab.research.google.com/drive/1-sRrCZJPk5tHEDgLhF86YnhTeQt5rIia#scrollTo=Qc7-p1WzEqBe)
+- This tutorial was helpful to refresh my mind: https://www.mlexpert.io/bootcamp/fine-tuning-tiny-llm-on-custom-dataset

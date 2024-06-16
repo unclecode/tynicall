@@ -167,9 +167,17 @@ local/
 .vscode/
 .vscode-server/
 outputs/
+outputs*
 wandb/
 .dotnet/
 .*
 !.gitignore
 
+results/
+
 .gitignore_global
+
+selected/
+data/
+tmp/
+test_data/

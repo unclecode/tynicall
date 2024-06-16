@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Training Loss Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"
+        integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA=="
+        crossorigin="anonymous"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            background-color: #1e1e1e;
+            border: 1px solid #991ebe;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: space-around;
+            padding: 10px 20px;
+            box-sizing: border-box;
+        }
+
+        .header img {
+            width: 50px;
+            height: 50px;
+        }
+
+        .header input {
+            padding: 5px;
+            border-radius: 4px;
+            border: none;
+            margin-right: 10px;
+        }
+
+        .header button {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: none;
+            background-color: #991ebe;
+            color: #ffffff;
+            cursor: pointer;
+        }
+
+        .header button:hover {
+            background-color: #b300ff;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <img src="logo.png" alt="Logo">
+        <h2>Training Loss</h2>
+        <h2>{{ chart_id }}</h2>
+        <input type="text" id="chartIdInput" placeholder="Enter chart ID">
+        <button onclick="loadChart()">Load Chart</button>
+    </div>
+    <canvas id="lossChart" width="800" height="400"></canvas>
+    <script>
+        var chartID = "{{ chart_id }}";
+        var initialTrainingLosses = JSON.parse('{{ training_losses | tojson | safe }}');
+        var initialEvalLosses = JSON.parse('{{ eval_losses | tojson | safe }}');
+        var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+        var ctx = document.getElementById('lossChart').getContext('2d');
+        var lossChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [...Array(initialTrainingLosses.length).keys()],
+                datasets: [{
+                    label: 'Training Loss',
+                    data: initialTrainingLosses,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                    fill: false
+                },
+                {
+                    label: 'Evaluation Loss',
+                    data: initialEvalLosses,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        },
+                        ticks: {
+                            color: '#ffffff'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        },
+                        ticks: {
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    },
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1,
+                                modifierKey: 'meta'
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            pan: {
+                                sensitivity: 6,
+                                enabled: true,
+                                mode: 'x',
+                                speed: 0.2,
+                                threshold: 8,
+                            },
+                            // drag : {
+                            //     enabled: true
+                            // },
+                            mode: 'xy',
+                        }
+                    }
+                }
+            }
+        });
+
+        socket.on('update_chart', function (msg) {
+            if (msg.chart_id === chartID) {
+                lossChart.data.labels = [...Array(msg.data.training_losses.length).keys()];
+                lossChart.data.datasets[0].data = msg.data.training_losses;
+                lossChart.data.datasets[1].data = msg.data.eval_losses;
+                lossChart.update();
+            }
+        });
+
+        function loadChart() {
+            var newChartId = document.getElementById('chartIdInput').value;
+            if (newChartId) {
+                window.location.href = '/chart/' + newChartId;
+            }
+        }
+    </script>
+</body>
+
+</html>
